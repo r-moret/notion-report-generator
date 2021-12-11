@@ -1,6 +1,9 @@
 import requests
 import datetime
 
+from typing import Dict, List
+
+
 class Connection():
     """Class to establish a connection with the database from the Notion's 
     Integration and perform actions or retrieves data from it.
@@ -25,6 +28,7 @@ class Connection():
             "Authorization": "Bearer " + self.API_TOKEN,
         }
     
+
     def report_info_from_date(self, report_date: str) -> str:
         """Retrieves the report information from the report created on the 
         specified day. Returns the information on JSON format.
@@ -71,6 +75,52 @@ class Connection():
         report = reports[0]
         return report
 
-        def report_content_from_id(self, report_id: str) -> str:
-            # TODO:
-            pass
+
+    def report_content_from_id(self, report_id: str) -> List[Dict]:
+        """Retrieves the content of the inner database from a specified report.
+
+        Parameters
+        ----------
+        report_id : str
+            Report ID whose content we want to obtain.
+
+        Returns
+        -------
+        List[Dict]
+            List of entries in the inner database. Each entry is
+            a dictionary.
+
+        Raises
+        ------
+        Exception
+            Raises if the report contains none or more than one inner databases.
+        """
+        url_report = f'https://api.notion.com/v1/blocks/{report_id}/children'
+
+        report_blocks = requests.get(url_report, headers=self.DEF_HEADER).json()["results"]
+        inner_dbs = [block["id"] for block in report_blocks if block["type"] == "child_database"]
+
+        if len(inner_dbs) != 1:
+            raise Exception(f"ERROR: Something went wrong with the format on page {report_id}")
+
+        database_id = inner_dbs[0]
+
+        url_database = f"https://api.notion.com/v1/databases/{database_id}/query"
+
+        headers = {key: value for key, value in self.DEF_HEADER.items()}
+        headers["Content-Type"] = "application/json"
+
+        query = {}
+
+        response = requests.post(url_database, headers=headers, json=query).json()
+        results = response["results"]
+
+        while response["has_more"]:
+            query = {
+                "start_cursor": response["next_cursor"],
+            }
+
+            response = requests.post(url_database, headers=headers, json=query).json()
+            results = results + response["results"]
+
+        return results
