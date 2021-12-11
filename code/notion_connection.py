@@ -10,6 +10,9 @@ class Connection():
     """
 
     def __init__(self, api_token: str, database_id: str) -> None:
+        # TODO: The database_id is not needed, it can be obtain directly
+        # with a search in the Integration, decoupling the Connection from
+        # the database and linking it directly and exclusively with the API
         """Initializer of the class. Saves the necessary data to establish
         the connection with the Notion's database.
 
