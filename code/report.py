@@ -1,6 +1,8 @@
 from notion_connection import Connection
 from typing import Dict
 
+import pandas as pd
+
 import datetime
 
 
@@ -77,20 +79,20 @@ class ReportManager():
             colleagues = []
         else:
             colleagues = [col["name"] for col in report_props["Compañeros"]["multi_select"]]
-        if not report_props["Visitas"]["rich_text"]:
-            visits = ""
-        else:
-            visits = report_props["Visitas"]["rich_text"][0]["plain_text"]
+
+        report_content = cls.cxn.report_content_from_id(report_id)
+        visits, report_database = report_content.values()
+
+        # TODO: And if there's no visit?
+        visits = [visit["properties"]["Impresión"]["rich_text"][0]["plain_text"] for visit in visits]
 
         report_info = {
             "date": report_props["Día"]["date"]["start"],
             "shift": report_props["Horario"]["select"]["name"],
-            "visits": visits,
             "colleagues": colleagues,
             "comments": comments,
+            "visits": visits,
         }
-
-        report_content = cls.cxn.report_content_from_id(report_id)
 
         def _filter_content(entry: Dict) -> Dict:
             props = entry["properties"]
@@ -126,9 +128,9 @@ class ReportManager():
 
             return relevant
 
-        report_content = [_filter_content(entry) for entry in report_content]
+        report_database = [_filter_content(entry) for entry in report_database]
 
-        return {"info": report_info, "content": report_content}
+        return {"info": report_info, "content": report_database}
 
 
 class Report():
@@ -162,11 +164,32 @@ class Report():
         self.shift = info["shift"]
         self.participants = info["colleagues"] + [ReportManager.author]
         self.comments = info["comments"]
-        self.content = content
+        self.visits = info["visits"]
+        self.content = pd.DataFrame(content)
 
     def write(self) -> str:
-        # TODO: Gives a full formated text representation of the report
-        pass
+        text = (
+            f"{self.date} {', '.join(self.participants[:-1])} y {self.participants[-1]} ({self.shift.lower()})\n"
+            f"\n"
+            f"Hora de entrada:\n"
+            f"Hora de salida:\n"
+            f"\n"
+            f"\n"
+            f"Entradas:\n"
+            f"Acogidas:    {(self.content['state'] == 'Acogida').sum()}\n"
+            f"Bajas:       {(self.content['state'] == 'Baja').sum()}\n"
+            f"Adopciones:  {(self.content['state'] == 'Adoptado').sum()}\n"
+            f"\n"
+            f"\n"
+            f"Visitas:\n"
+            f"\n"
+            f"\n"
+            f"Notas:\n"
+            f"{self.comments}\n"
+            f"\n"
+            f"\n"
+        )
+        return text
         
     def __str__(self) -> str:
         report = f"({self.date} - {self.shift}: {self.participants})"

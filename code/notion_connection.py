@@ -101,13 +101,15 @@ class Connection():
         url_report = f'https://api.notion.com/v1/blocks/{report_id}/children'
 
         report_blocks = requests.get(url_report, headers=self.DEF_HEADER).json()["results"]
-        inner_dbs = [block["id"] for block in report_blocks if block["type"] == "child_database"]
+        inner_dbs = {block["child_database"]["title"]: block["id"] for block in report_blocks}
 
-        if len(inner_dbs) != 1:
+        if len(inner_dbs) != 2:
             raise Exception(f"ERROR: Something went wrong with the format on page {report_id}")
 
-        database_id = inner_dbs[0]
+        visits_id = inner_dbs["Visitas"]
+        database_id = inner_dbs["Gatos"]
 
+        url_visits = f"https://api.notion.com/v1/databases/{visits_id}/query"
         url_database = f"https://api.notion.com/v1/databases/{database_id}/query"
 
         headers = {key: value for key, value in self.DEF_HEADER.items()}
@@ -115,15 +117,18 @@ class Connection():
 
         query = {}
 
-        response = requests.post(url_database, headers=headers, json=query).json()
-        results = response["results"]
+        visits_response = requests.post(url_visits, headers=headers, json=query).json()
+        visits_results = visits_response["results"]
 
-        while response["has_more"]:
+        database_response = requests.post(url_database, headers=headers, json=query).json()
+        database_results = database_response["results"]
+
+        while database_response["has_more"]:
             query = {
-                "start_cursor": response["next_cursor"],
+                "start_cursor": database_response["next_cursor"],
             }
 
-            response = requests.post(url_database, headers=headers, json=query).json()
-            results = results + response["results"]
+            database_response = requests.post(url_database, headers=headers, json=query).json()
+            database_results = database_results + database_response["results"]
 
-        return results
+        return {"visits": visits_results, "database": database_results}
