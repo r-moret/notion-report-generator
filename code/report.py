@@ -181,6 +181,7 @@ class Report():
             output.print(Padding(f"Hora de entrada: {hours[self.shift][0]}", (1,0,0,0)))
             output.print(Padding(f"Hora de entrada: {hours[self.shift][1]}", (0,0,0,0)))
 
+            # TODO: Count the number of new cats
             output.print(Padding(f"Entradas: X", (2,0,0,0)))
             output.print(f"Acogidas: {n_shelter}")
             output.print(f"Bajas: {n_deaths}")
@@ -192,6 +193,11 @@ class Report():
 
             output.print(Padding(f"Notas:", (2,0,0,0)))
             output.print(Padding(self.comments, (0,0,1,2)))
+            
+            important_mask = self.content["important"] != ""
+            for __, cat in self.content[important_mask].iterrows():
+                output.print(Padding(f"- {cat['name'].upper()}: {cat['important']}", (0,0,0,2)))
+
 
             for yard, cats in self.content.groupby("yard"):
                 output.print(Padding(f"Patio {yard}:", (1,0,0,0)))
