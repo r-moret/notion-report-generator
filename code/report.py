@@ -1,5 +1,7 @@
 from notion_connection import Connection
 from typing import Dict
+from rich.console import Console
+from rich.padding import Padding
 
 import pandas as pd
 
@@ -83,7 +85,6 @@ class ReportManager():
         report_content = cls.cxn.report_content_from_id(report_id)
         visits, report_database = report_content.values()
 
-        # TODO: And if there's no visit?
         visits = [visit["properties"]["Impresión"]["rich_text"][0]["plain_text"] for visit in visits]
 
         report_info = {
@@ -136,6 +137,7 @@ class ReportManager():
 class Report():
     """Wrapper class of the reports stored in the Notion's workspace.
     """
+    MAX_LINE_LENGTH = 100
 
     def __init__(self, date: str) -> None:
         """Asks for a certain date to the ReportManager in order to receive the
@@ -168,27 +170,37 @@ class Report():
         self.content = pd.DataFrame(content)
 
     def write(self) -> str:
-        text = (
-            f"{self.date} {', '.join(self.participants[:-1])} y {self.participants[-1]} ({self.shift.lower()})\n"
-            f"\n"
-            f"Hora de entrada:\n"
-            f"Hora de salida:\n"
-            f"\n"
-            f"\n"
-            f"Entradas:\n"
-            f"Acogidas:    {(self.content['state'] == 'Acogida').sum()}\n"
-            f"Bajas:       {(self.content['state'] == 'Baja').sum()}\n"
-            f"Adopciones:  {(self.content['state'] == 'Adoptado').sum()}\n"
-            f"\n"
-            f"\n"
-            f"Visitas:\n"
-            f"\n"
-            f"\n"
-            f"Notas:\n"
-            f"{self.comments}\n"
-            f"\n"
-            f"\n"
-        )
+        n_shelter = (self.content['state'] == 'Acogida').sum()
+        n_deaths = (self.content['state'] == 'Baja').sum()
+        n_adoptions = (self.content['state'] == 'Adoptado').sum()
+        hours = {"Mañana": ("10:00", "14:00"), "Tarde": ("16:30", "20:30")}
+
+        output = Console(width=self.MAX_LINE_LENGTH)
+        with output.capture() as capture:
+            output.print(f"{self.date} {', '.join(self.participants[:-1])} y {self.participants[-1]} ({self.shift.lower()})")
+            output.print(Padding(f"Hora de entrada: {hours[self.shift][0]}", (1,0,0,0)))
+            output.print(Padding(f"Hora de entrada: {hours[self.shift][1]}", (0,0,0,0)))
+
+            output.print(Padding(f"Entradas: X", (2,0,0,0)))
+            output.print(f"Acogidas: {n_shelter}")
+            output.print(f"Bajas: {n_deaths}")
+            output.print(f"Adopciones: {n_adoptions}")
+
+            output.print(Padding(f"Visitas: {len(self.visits)}", (2,0,0,0)))
+            for i, visit in enumerate(self.visits):
+                output.print(Padding(f"{i+1} - {visit}", (0,0,0,2)))
+
+            output.print(Padding(f"Notas:", (2,0,0,0)))
+            output.print(Padding(self.comments, (0,0,1,2)))
+
+            for yard, cats in self.content.groupby("yard"):
+                output.print(Padding(f"Patio {yard}:", (1,0,0,0)))
+
+                mask_cats = cats["observations"] != ""
+                for __, cat in cats[mask_cats].iterrows():
+                    output.print(Padding(f"- {cat['name'].upper()}: {cat['observations']}", (0,0,0,2)))
+
+        text = capture.get()
         return text
         
     def __str__(self) -> str:
